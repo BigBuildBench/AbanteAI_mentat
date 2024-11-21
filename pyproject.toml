@@ -1,0 +1,6 @@
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+addopts = "--ignore=vscode/bundled --ignore=benchmarks/benchmark_repos --ignore=testbed/exercism-python"
+

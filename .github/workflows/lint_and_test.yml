@@ -1,0 +1,84 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: lint and test
+
+on: [push, pull_request]
+
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v3
+      - name: install reqs
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv venv
+          uv pip install -r dev-requirements.txt
+      - name: activate venv
+        run: |
+          . .venv/bin/activate
+          echo PATH=$PATH >> $GITHUB_ENV
+      - name: ruff (linter)
+        run: ruff check --select I .
+      - name: ruff (formatter)
+        run: ruff format --check .
+
+  build:
+    runs-on: ${{ matrix.os }}
+    # Set timeout to 20 minutes for Windows due to longer build times, otherwise 10 minutes
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 10 }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup node (for pyright)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "16"
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install .
+          python -m pip install -r dev-requirements.txt
+      - name: Check types with pyright
+        run: |
+          pyright
+      - name: Test with pytest
+        run: |
+          pytest
+      - name: Can run Mentat
+        # Unfortunately Github Actions Runners have trouble with prompt toolkit, so we can't do this on Windows.
+        if: runner.os != 'Windows'
+        # Ensure that python doesn't import local mentat folder and that 'mentat' command calls mentat instead of switching folders.
+        working-directory: ./testbed
+        run: |
+          mentat
+
+  license-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.11
+      - name: Install dependencies
+        run: |
+          python -m pip install .
+          pip install -r dev-requirements.txt
+      - name: Run license checking script
+        run: |
+          python tests/license_check.py
